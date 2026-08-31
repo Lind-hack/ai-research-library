@@ -69,6 +69,13 @@ def snapshot() -> dict:
     }
 
 
+def git_env() -> dict:
+    value = os.environ.copy()
+    if SSH_KEY.exists():
+        value["GIT_SSH_COMMAND"] = f"ssh -i {SSH_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+    return value
+
+
 def run(command: list[str], cwd: Path | None = None, env: dict | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(command, cwd=str(cwd) if cwd else None, env=env, capture_output=True, text=True, timeout=90, check=False)
 
@@ -77,6 +84,16 @@ def main() -> int:
     if not REPO.joinpath(".git").exists():
         print(json.dumps({"status": "repo_missing", "repo": str(REPO)}))
         return 0
+    sync_env = git_env()
+    fetched = run(["git", "fetch", "origin"], REPO, sync_env)
+    if fetched.returncode != 0:
+        print(json.dumps({"status": "fetch_failed", "stderr": fetched.stderr[-900:]}))
+        return 1
+    rebased = run(["git", "rebase", "origin/main"], REPO, sync_env)
+    if rebased.returncode != 0:
+        run(["git", "rebase", "--abort"], REPO, sync_env)
+        print(json.dumps({"status": "rebase_failed", "stderr": rebased.stderr[-900:]}))
+        return 1
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(snapshot(), ensure_ascii=False, indent=2) + "\n"
     previous = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
@@ -99,9 +116,7 @@ def main() -> int:
     if committed.returncode != 0:
         print(json.dumps({"status": "commit_failed", "stderr": committed.stderr[-700:]}))
         return 1
-    push_env = os.environ.copy()
-    if SSH_KEY.exists():
-        push_env["GIT_SSH_COMMAND"] = f"ssh -i {SSH_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+    push_env = git_env()
     pushed = run(["git", "push", "origin", "main"], REPO, push_env)
     if pushed.returncode != 0:
         print(json.dumps({"status": "push_failed", "stderr": pushed.stderr[-900:]}))
