@@ -84,8 +84,8 @@ def main() -> int:
         print(json.dumps({"status": "unchanged", "repo": str(REPO), "output": str(OUTPUT)}))
         return 0
     OUTPUT.write_text(content, encoding="utf-8")
-    run(["git", "config", "user.name", "Research Archive Bot"], REPO)
-    run(["git", "config", "user.email", "research-archive@users.noreply.github.com"], REPO)
+    run(["git", "config", "user.name", "Lind-hack"], REPO)
+    run(["git", "config", "user.email", "110059658+Lind-hack@users.noreply.github.com"], REPO)
     staged = run(["git", "add", "--", "data/research.json"], REPO)
     if staged.returncode != 0:
         print(json.dumps({"status": "git_add_failed", "stderr": staged.stderr[-500:]}))
